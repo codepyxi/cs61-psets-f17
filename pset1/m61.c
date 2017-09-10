@@ -6,6 +6,11 @@
 #include <inttypes.h>
 #include <assert.h>
 
+// *** global variables ***
+struct m61_statistics statistics = {0, 0, 0, 0, 0 , 0, 0, 0}; // *** initialize all members of the struct to zero. It is like initializing an array with 8 zeros. ***
+
+
+
 /// m61_malloc(sz, file, line)
 ///    Return a pointer to `sz` bytes of newly-allocated dynamic memory.
 ///    The memory is not initialized. If `sz == 0`, then m61_malloc may
@@ -15,7 +20,25 @@
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
-    return base_malloc(sz);
+
+    void* ptr;  // *** declares variable ptr that will hold the sz (in bytes) + metadata (in bytes) ***
+    struct m61_metadata metadata;   // *** declares the variable of type struct m61_metadata ***
+
+    if (sz ==0) {   // *** ***
+        return NULL;    // *** ***
+    }
+
+    statistics.nactive++;   // *** increase nactive in the statistics struct by one. ***
+    statistics.ntotal++;   // *** increase ntotal in the statistics struct by one. Every time an allocation is added it increases. ***
+    statistics.total_size += sz;    // *** increase total_size by sz ***
+
+    metadata.size = sz; // *** this is the size that it is allocated ***
+
+    ptr = base_malloc(sz + sizeof(struct m61_metadata)); // *** ptr stores the pointer to the allocated memory which is sz (in bytes) plus metadata (in bytes) ***
+
+    memcpy (ptr, &metadata, sizeof(struct m61_metadata));  // *** copies the metadata to the allocated memory ***
+
+    return ptr + sizeof(struct m61_metadata);   // *** returns the sz bytes without metadata (the metadata is for me not the user) ***
 }
 
 
@@ -26,9 +49,24 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 ///    `file`:`line`.
 
 void m61_free(void *ptr, const char *file, int line) {
+
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
-    base_free(ptr);
+
+    if (ptr) {
+    struct m61_metadata* metadata; // *** metadata is now a pointer to the m61_metadata structure ***
+    size_t sz;  // *** declares variable that is going to keep the size later (the size of user allocated memory) ***
+
+
+    statistics.nactive--;   // *** decrease nactive in the statistics structs by one (b/c I am freeing it) ***
+
+    metadata = (struct m61_metadata*)(ptr - sizeof(metadata));  // *** casting to struct m61_metadata* (pointer is equal to pointer of same type) ***
+
+    sz = metadata->size;    // *** I retreive the metadata and that is my size and the I retrieve the size of allocated memory from metadata ***
+
+    base_free(ptr-sizeof(metadata));     // *** ***
+
+    }
 }
 
 
@@ -76,8 +114,33 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
 
 void m61_getstatistics(struct m61_statistics* stats) {
     // Stub: set all statistics to enormous numbers
-    memset(stats, 255, sizeof(struct m61_statistics));
+    // memset(stats, 255, sizeof(struct m61_statistics)); // ---> why do memset are set to 255? B/c it is filled with something
     // Your code here.
+     // printf("%s%lld\t%s%lld\t%s%lld\t%s%lld\t%s%lld\t%s%lld\t", "statistics size",statistics.active_size ,"statistics nactive",statistics.nactive , "statistics ntotal",statistics.ntotal, "statistics total_size",statistics.total_size, "statistics nfail",statistics.nfail , "statistics fail_size",statistics.fail_size );
+
+    memcpy(&stats->nactive, &statistics.nactive, sizeof(stats->nactive)); // *** This copies nactive. B/c stats is a pointer, use -> ***
+
+    memcpy(&stats->active_size, &statistics.active_size, sizeof(stats->active_size));     // *** # bytes in active allocations ***
+
+    memcpy(&stats->ntotal, &statistics.ntotal, sizeof(stats->ntotal)); // *** This copies nactive. B/c stats is a pointer, use -> ***
+
+    memcpy(&stats->total_size, &statistics.total_size, sizeof(stats->total_size));     // *** copies # bytes in total allocations ***
+
+    memcpy(&stats->nfail, &statistics.nfail, sizeof(stats->nfail));     // *** copies # failed allocation attempts ***
+
+    memcpy(&stats->fail_size, &statistics.fail_size, sizeof(stats->fail_size));     // *** copies # bytes in failed alloc attempts ***
+
+    memcpy(&stats->heap_min, &statistics.heap_min, sizeof(stats->heap_min));     // *** copies smallest allocated addr ***
+
+    memcpy(&stats->heap_max, &statistics.heap_max, sizeof(stats->heap_max));     // *** copies largest allocated addr ***
+
+    // printf("stats size%10llu   stats nactive%10llu     stats ntotal%10llu      stats total_size%10llu      stats nfail%10llu      stats fail_size%10llu\n", &stats->active_size ,&stats->nactive , &stats->ntotal, &stats->total_size, &stats->nfail , &stats->fail_size );
+
+    // printf("malloc count: active %10llu   total %10llu   fail %10llu\n",
+    //        stats->nactive, stats->ntotal, stats->nfail);
+    // printf("malloc size:  active %10llu   total %10llu   fail %10llu\n",
+    //        stats->active_size, stats->total_size, stats->fail_size);
+
 }
 
 
