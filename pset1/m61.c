@@ -7,8 +7,7 @@
 #include <assert.h>
 
 // *** global variables ***
-struct m61_statistics statistics = {0, 0, 0, 0, 0 , 0, 0, 0}; // *** initialize all members of the struct to zero. It is like initializing an array with 8 zeros. ***
-
+static struct m61_statistics statistics = {0, 0, 0, 0, 0 , 0, NULL, NULL}; // *** initialize all members of the struct to zero. It is like initializing an array with 8 zeros. ***
 
 
 /// m61_malloc(sz, file, line)
@@ -24,21 +23,45 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     void* ptr;  // *** declares variable ptr that will hold the sz (in bytes) + metadata (in bytes) ***
     struct m61_metadata metadata;   // *** declares the variable of type struct m61_metadata ***
 
-    if (sz ==0) {   // *** ***
+    size_t metadata_size = sizeof(struct m61_metadata);
+
+
+
+    if (sz <= 0) {   // *** ***
         return NULL;    // *** ***
+    }
+
+    // Now I try to allocate, and if base_malloc returns null then it is the same as malloc. For instance, no more memory
+    ptr = base_malloc(sz + metadata_size + (16 - metadata_size % 16)%16); // *** ptr stores the pointer to the allocated memory which is sz (in bytes) plus metadata (in bytes) ***
+                                                                        // *** this aligns the pointer that is being returned to be divisible by 16 ***
+                                                                        // *** so instead of additionnally allocating metadata_size, we allocate a little bit more to align the final returned address to 16 ***
+                                                                        // *** the second %16 prevents to add another 16 for nothing ***
+
+    // *** ***
+    if (ptr == NULL) {
+        statistics.nfail++; // if the malloc is failing then increase nfail by one
+        statistics.fail_size += sz; // if the malloc is failing increase fail_size by the size (sz)
+        return NULL;
     }
 
     statistics.nactive++;   // *** increase nactive in the statistics struct by one. ***
     statistics.ntotal++;   // *** increase ntotal in the statistics struct by one. Every time an allocation is added it increases. ***
     statistics.total_size += sz;    // *** increase total_size by sz ***
+    statistics.active_size += sz;   // *** increase active_size by sz ***
+
+    if (ptr < (void*)statistics.heap_min || statistics.heap_min == NULL)
+        statistics.heap_min = (char*)ptr;
+    if (ptr + sz > (void*)statistics.heap_max)
+        statistics.heap_max = (char*)ptr + sz;
+
+    // printf("%d\n", statistics.active_size);
 
     metadata.size = sz; // *** this is the size that it is allocated ***
 
-    ptr = base_malloc(sz + sizeof(struct m61_metadata)); // *** ptr stores the pointer to the allocated memory which is sz (in bytes) plus metadata (in bytes) ***
-
     memcpy (ptr, &metadata, sizeof(struct m61_metadata));  // *** copies the metadata to the allocated memory ***
 
-    return ptr + sizeof(struct m61_metadata);   // *** returns the sz bytes without metadata (the metadata is for me not the user) ***
+    return ptr + metadata_size + (16 - metadata_size % 16)%16;   // *** returns the sz bytes without metadata plus a couple of bytes for alignment (the metadata is for me not the user) ***
+
 }
 
 
@@ -53,19 +76,25 @@ void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
 
+    size_t metadata_size = sizeof(struct m61_metadata);
+
+
     if (ptr) {
-    struct m61_metadata* metadata; // *** metadata is now a pointer to the m61_metadata structure ***
-    size_t sz;  // *** declares variable that is going to keep the size later (the size of user allocated memory) ***
+        struct m61_metadata* metadata; // *** metadata is now a pointer to the m61_metadata structure ***
+        size_t sz;  // *** declares variable that is going to keep the size later (the size of user allocated memory) ***
+
+        statistics.nactive--;   // *** decrease nactive in the statistics structs by one (b/c I am freeing it) ***
+
+        metadata = (struct m61_metadata*)(ptr - (metadata_size + (16 - metadata_size % 16)%16));  // *** casting to struct m61_metadata* (pointer is equal to pointer of same type) ***
+
+        sz = metadata->size;    // *** I retreive the metadata and that is my size and the I retrieve the size of allocated memory from metadata ***
+
+        statistics.active_size -= sz;
+
+        // printf("%d\n", statistics.active_size);
 
 
-    statistics.nactive--;   // *** decrease nactive in the statistics structs by one (b/c I am freeing it) ***
-
-    metadata = (struct m61_metadata*)(ptr - sizeof(metadata));  // *** casting to struct m61_metadata* (pointer is equal to pointer of same type) ***
-
-    sz = metadata->size;    // *** I retreive the metadata and that is my size and the I retrieve the size of allocated memory from metadata ***
-
-    base_free(ptr-sizeof(metadata));     // *** ***
-
+        base_free(ptr- (metadata_size + (16 - metadata_size % 16)%16));     // *** this frees everything metadata + couple of bytes for alignment + the user memory ***
     }
 }
 
@@ -140,6 +169,9 @@ void m61_getstatistics(struct m61_statistics* stats) {
     //        stats->nactive, stats->ntotal, stats->nfail);
     // printf("malloc size:  active %10llu   total %10llu   fail %10llu\n",
     //        stats->active_size, stats->total_size, stats->fail_size);
+
+    // printf("%d\n", statistics.active_size);
+    // printf("%d\n", stats->active_size);
 
 }
 

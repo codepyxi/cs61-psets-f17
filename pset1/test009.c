@@ -8,6 +8,8 @@ int main() {
     char* p = (char*) malloc(10);
     struct m61_statistics stat;
     m61_getstatistics(&stat);
-    assert(p >= stat.heap_min);
+    assert(p >= stat.heap_min);		// assert is like comparing. If it is true, the program continues. If it fails, the program stops. 
     assert(p + 10 <= stat.heap_max);
+
+    // printf("%d\n", );
 }
