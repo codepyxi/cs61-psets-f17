@@ -13,6 +13,10 @@
 
 struct io61_file {
     int fd;
+    char* io_base_ptr;
+    char* io_current_ptr;
+    char* io_end_ptr;
+    int buf_size;
 };
 
 
@@ -45,13 +49,22 @@ int io61_close(io61_file* f) {
 //    Read a single (unsigned) character from `f` and return it. Returns EOF
 //    (which is -1) on error or end-of-file.
 
-int io61_readc(io61_file* f) {
-    unsigned char buf[1];
-    if (read(f->fd, buf, 1) == 1) {
-        return buf[0];
-    } else {
-        return EOF;
-    }
+char* io61_readc(io61_file* f) {
+    // unsigned char buf[1024];
+    // if (read(f->fd, buf, 1024) == 1) {
+    //     return buf;
+    // } else {
+    //     return EOF;
+    // }
+
+    // it calculates how much it needs to read without reading it, at first
+    // it know the counts, where to begin and then reads it
+    // it is useful to know how much is left to read (byte(s) left)
+    // I know how many bytes I want to read. I also know the end point. So, instead of the system asking (are you done) every single round, I will ask it twice.
+    // This will be an optimization especially for the big files.
+
+    
+
 }
 
 
